@@ -324,8 +324,6 @@ impl PromptContent {
                 result.push(ZshSequence::Literal(" ".to_string()));
             }
         }
-        let builder = zsh_seq::ZshPromptBuilder::new().chain(result.clone());
-        eprintln!("{}", builder.build());
         result
     }
 }
