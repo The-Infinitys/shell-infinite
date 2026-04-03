@@ -27,9 +27,14 @@ fn main() {
 
     // バイナリビルド時（＝ライブラリファイルが既に存在する場合）のみ、
     // 環境変数をセットし、cfgフラグを有効にする
+    println!("cargo:rerun-if-changed={}", lib_path.display());
     if lib_path.exists() {
         println!("cargo:rustc-env=ZSH_LIB_PATH={}", lib_path.display());
-        println!("cargo:rerun-if-changed={}", lib_path.display());
         println!("cargo:rustc-cfg=zsh_lib_found");
+    } else {
+        println!(
+            "cargo:warning=Shared library not found at {}. Install command will be restricted.",
+            lib_path.display()
+        );
     }
 }

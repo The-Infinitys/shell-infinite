@@ -3,11 +3,7 @@ use super::paths;
 #[cfg(all(unix, zsh_lib_found))]
 use std::os::unix::fs::PermissionsExt;
 #[cfg(zsh_lib_found)]
-use std::{
-    env::{self, home_dir},
-    fs,
-    path::PathBuf,
-};
+use std::{env, fs, path::PathBuf};
 
 #[cfg(zsh_lib_found)]
 pub fn install() {
@@ -19,7 +15,14 @@ pub fn install() {
             return;
         }
     };
-    let lib_dir = home_dir().unwrap().join(".local/lib");
+    let home_dir = match env::var("HOME") {
+        Ok(dir) => PathBuf::from(dir),
+        Err(_) => {
+            eprintln!("Error: HOME environment variable not set.");
+            return;
+        }
+    };
+    let lib_dir = home_dir.join(".local/lib");
     if let Err(e) = fs::create_dir_all(&lib_dir) {
         eprintln!("Error creating library directory {:?}: {}", lib_dir, e);
         return;
@@ -124,13 +127,6 @@ pub fn install() {
     }
 
     // 4. Modify user's ~/.zshrc
-    let home_dir = match env::var("HOME") {
-        Ok(dir) => PathBuf::from(dir),
-        Err(_) => {
-            eprintln!("Error: HOME environment variable not set.");
-            return;
-        }
-    };
     let user_zshrc_path = home_dir.join(".zshrc");
 
     if !user_zshrc_path.exists() {
@@ -148,75 +144,53 @@ pub fn install() {
 
             if install_paths.is_oh_my_zsh_install {
                 // Oh My Zsh installation
-                let zsh_root = paths::get_oh_my_zsh_root().expect("Oh My Zsh root not found");
-                let zsh_custom_parent = paths::get_oh_my_zsh_custom_theme_dir()
-                    .expect("Oh My Zsh custom theme directory not found")
-                    .parent()
-                    .expect("ZSH_CUSTOM parent directory not found")
-                    .to_path_buf();
                 let theme_name = install_paths
                     .theme_file_path
                     .file_stem()
                     .expect("Theme file name not found")
                     .to_string_lossy();
+                let theme_setting_line = format!("ZSH_THEME=\"{}\"", theme_name);
+                let source_oh_my_zsh_line = "source $ZSH/oh-my-zsh.sh";
 
-                let zsh_var_line = format!("ZSH=\"{}\"", zsh_root.to_string_lossy());
-                let zsh_custom_var_line =
-                    format!("ZSH_CUSTOM=\"{}\"", zsh_custom_parent.to_string_lossy());
-                let theme_setting_line = format!("export ZSH_THEME=\"{}\"", theme_name); // export を追加
-                let source_oh_my_zsh_line_exact = "source $ZSH/oh-my-zsh.sh";
-
-                let oh_my_zsh_block = format!(
-                    "{}\n{}\n{}\n{}",
-                    zsh_var_line,
-                    zsh_custom_var_line,
-                    theme_setting_line,
-                    source_oh_my_zsh_line_exact
-                );
-
-                let mut oh_my_zsh_source_found_in_original = false;
-                let mut omz_block_inserted = false;
+                let mut theme_found = false;
+                let mut source_omz_found = false;
 
                 for line in zshrc_content.lines() {
                     let trimmed_line = line.trim();
 
-                    // 既存の Oh My Zsh 関連の行をスキップ
-                    if trimmed_line.starts_with("ZSH=")
-                        || trimmed_line.starts_with("ZSH_CUSTOM=")
-                        || trimmed_line.starts_with("ZSH_THEME=")
-                        || trimmed_line.starts_with("export ZSH_THEME=")
+                    if (trimmed_line.starts_with("ZSH_THEME=")
+                        || trimmed_line.starts_with("export ZSH_THEME="))
+                        && !theme_found
                     {
-                        if !omz_block_inserted {
-                            // まだブロックが挿入されていなければ、既存の変更があるので_modifiedをセット
+                        new_zshrc_content_lines.push(theme_setting_line.clone());
+                        theme_found = true;
+                        _modified = true;
+                    } else if trimmed_line.contains(source_oh_my_zsh_line) && !source_omz_found {
+                        if !theme_found {
+                            new_zshrc_content_lines.push(theme_setting_line.clone());
+                            theme_found = true;
                             _modified = true;
                         }
-                        continue; // これらの行は新しいブロックとして挿入するのでスキップ
-                    }
-
-                    // source $ZSH/oh-my-zsh.sh の行を特定し、その位置に新しいブロックを挿入
-                    if trimmed_line.contains(source_oh_my_zsh_line_exact) && !omz_block_inserted {
-                        oh_my_zsh_source_found_in_original = true;
-                        new_zshrc_content_lines.push(oh_my_zsh_block.clone());
-                        _modified = true;
-                        omz_block_inserted = true; // ブロック挿入済みフラグ
+                        new_zshrc_content_lines.push(line.to_string());
+                        source_omz_found = true;
                     } else {
                         new_zshrc_content_lines.push(line.to_string());
                     }
                 }
 
-                // もし source $ZSH/oh-my-zsh.sh が元のファイル中に見つからなかった場合、末尾に追加
-                if !oh_my_zsh_source_found_in_original && !omz_block_inserted {
+                if !theme_found {
                     if !new_zshrc_content_lines.is_empty() {
-                        new_zshrc_content_lines.push(String::new()); // 前の行との間に改行を追加
+                        new_zshrc_content_lines.push(String::new());
                     }
-                    new_zshrc_content_lines.push(oh_my_zsh_block.clone());
+                    new_zshrc_content_lines.push(theme_setting_line);
+                    if !source_omz_found {
+                        new_zshrc_content_lines.push(source_oh_my_zsh_line.to_string());
+                    }
                     _modified = true;
                 }
 
-                // 最後の改行を削除し、内容を結合
-                let final_zshrc_content = new_zshrc_content_lines.join("\n");
-
                 if _modified {
+                    let final_zshrc_content = new_zshrc_content_lines.join("\n");
                     match fs::write(&user_zshrc_path, final_zshrc_content.as_bytes()) {
                         Ok(_) => println!("~/.zshrc updated for Oh My Zsh theme."),
                         Err(e) => eprintln!("Error writing to ~/.zshrc: {}", e),
@@ -234,65 +208,55 @@ pub fn install() {
                 );
                 let installer_comment_start = "# Added by zsh-infinite installer";
 
-                let mut zshrc_lines: Vec<String> =
-                    zshrc_content.lines().map(|s| s.to_string()).collect();
                 let mut source_line_present = false;
-
-                // 既存の source line をチェックし、削除
-                let original_line_count = zshrc_lines.len();
-                zshrc_lines.retain(|line| {
-                    if line.contains(&source_line) || line.contains(installer_comment_start) {
+                for line in zshrc_content.lines() {
+                    if line.contains(&source_line) {
                         source_line_present = true;
-                        return false; // 既存の行とコメントを削除
+                        break;
                     }
-                    true
-                });
-
-                if zshrc_lines.len() != original_line_count {
-                    _modified = true;
                 }
 
                 if !source_line_present {
+                    let mut zshrc_lines: Vec<String> =
+                        zshrc_content.lines().map(|s| s.to_string()).collect();
                     if !zshrc_lines.is_empty() {
-                        zshrc_lines.push(String::new()); // 前の行との間に改行を追加
+                        zshrc_lines.push(String::new());
                     }
                     zshrc_lines.push(installer_comment_start.to_string());
                     zshrc_lines.push(source_line.to_string());
-                    _modified = true;
 
-                    // Create snippet file
-                    let zshrc_snippet_content = format!(
-                        r#"
+                    match fs::write(&user_zshrc_path, zshrc_lines.join("\n").as_bytes()) {
+                        Ok(_) => println!("~/.zshrc updated for standalone theme."),
+                        Err(e) => eprintln!("Error writing to ~/.zshrc: {}", e),
+                    }
+                    _modified = true;
+                }
+
+                // Create snippet file
+                let zshrc_snippet_content = format!(
+                    r#"
 # Added by zsh-infinite installer
 if [ -f "{}" ]; then
     source "{}"
 fi
 "#,
-                        install_paths.theme_file_path.to_string_lossy(),
-                        install_paths.theme_file_path.to_string_lossy()
+                    install_paths.theme_file_path.to_string_lossy(),
+                    install_paths.theme_file_path.to_string_lossy()
+                );
+                if let Err(e) = fs::write(
+                    &install_paths.zshrc_snippet_path,
+                    zshrc_snippet_content.as_bytes(),
+                ) {
+                    eprintln!(
+                        "Error writing zshrc snippet to {:?}: {}",
+                        install_paths.zshrc_snippet_path, e
                     );
-                    if let Err(e) = fs::write(
-                        &install_paths.zshrc_snippet_path,
-                        zshrc_snippet_content.as_bytes(),
-                    ) {
-                        eprintln!(
-                            "Error writing zshrc snippet to {:?}: {}",
-                            install_paths.zshrc_snippet_path, e
-                        );
-                        return;
-                    } else {
-                        println!(
-                            "Zshrc snippet created at: {:?}",
-                            install_paths.zshrc_snippet_path
-                        );
-                    }
-                }
-
-                if _modified {
-                    match fs::write(&user_zshrc_path, zshrc_lines.join("\n").as_bytes()) {
-                        Ok(_) => println!("~/.zshrc updated for standalone theme."),
-                        Err(e) => eprintln!("Error writing to ~/.zshrc: {}", e),
-                    }
+                    return;
+                } else if !source_line_present {
+                    println!(
+                        "Zshrc snippet created at: {:?}",
+                        install_paths.zshrc_snippet_path
+                    );
                 }
             }
         }

@@ -1,4 +1,3 @@
-#![feature(trait_alias)]
 mod modules;
 use crate::modules::zsh::theme::{self, prompt_theme::PromptTheme};
 pub use modules::*;
