@@ -58,16 +58,25 @@ pub async fn left() -> ZshPromptBuilder {
 
         let left_content = prompt.render_left(prompt_contents);
         let right_content = prompt.render_right(prompt_contents);
-        let terminal_width = terminal::size().map(|(w, _)| w).unwrap_or(80) as usize;
+        let terminal_width = std::env::var("COLUMNS")
+            .ok()
+            .and_then(|s| s.parse::<usize>().ok())
+            .unwrap_or_else(|| terminal::size().map(|(w, _)| w).unwrap_or(80) as usize);
         let left_width = left_content.len();
         let right_width = right_content.len();
         let conn_line_width =
             UnicodeWidthStr::width(prompt_contents.connection.to_string().as_str());
         let side_decor_width =
             UnicodeWidthStr::width(curved_lines.top_left.as_str()) + conn_line_width;
-        let connection_len = (terminal_width * 2)
-            .saturating_sub(left_width + right_width + side_decor_width * 2)
-            % terminal_width;
+
+        let stuff_width = left_width + right_width + side_decor_width * 2;
+        let connection_len = if stuff_width < terminal_width {
+            terminal_width - stuff_width
+        } else {
+            (terminal_width * 2)
+                .saturating_sub(stuff_width)
+                % terminal_width
+        };
         let connection_str = prompt_contents // `theme.connection` から `prompt_contents.connection` に変更
             .connection
             .to_string()
