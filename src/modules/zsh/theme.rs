@@ -39,18 +39,19 @@ pub async fn main() {
         let selection = Select::with_theme(&ColorfulTheme::default())
             .with_prompt("Main Menu")
             .items(&options)
-            .interact()
-            .unwrap();
+            .clear(true)
+            .interact_opt()
+            .unwrap_or(None);
 
         match selection {
-            0 => {
+            Some(0) => {
                 // Add new prompt line
                 current_theme
                     .prompt_contents_list
                     .push(PromptContents::default());
                 println!("New prompt line added.");
             }
-            1 => {
+            Some(1) => {
                 // Remove last prompt line
                 if current_theme.prompt_contents_list.pop().is_some() {
                     println!("Last prompt line removed.");
@@ -58,7 +59,7 @@ pub async fn main() {
                     println!("No prompt lines to remove.");
                 }
             }
-            s if s >= 2 && s < options.len() - 1 => {
+            Some(s) if s >= 2 && s < options.len() - 1 => {
                 // Configure Prompt Line
                 let line_index = s - 2;
                 if let Some(prompt_contents) =
@@ -69,12 +70,12 @@ pub async fn main() {
                     eprintln!("Invalid prompt line index selected.");
                 }
             }
-            s if s == options.len() - 1 => {
+            Some(s) if s == options.len() - 1 => {
                 // Save and Exit
                 let _ = manager::save_theme(&current_theme);
                 break;
             }
-            _ => unreachable!(),
+            _ => break, // Exit loop on cancel or error
         }
     }
 }
@@ -93,16 +94,17 @@ async fn configure_prompt_line(prompt_contents: &mut PromptContents) {
         let selection = Select::with_theme(&ColorfulTheme::default())
             .with_prompt("Prompt Line Configuration")
             .items(options)
-            .interact()
-            .unwrap();
+            .clear(true)
+            .interact_opt()
+            .unwrap_or(None);
 
         match selection {
-            0 => config_ui::configure_colors(prompt_contents),
-            1 => config_ui::configure_connection(prompt_contents),
-            2 => config_ui::configure_separation(prompt_contents),
-            3 => configure_prompt_content_list(&mut prompt_contents.left, "Left"),
-            4 => configure_prompt_content_list(&mut prompt_contents.right, "Right"),
-            5 => break,
+            Some(0) => config_ui::configure_colors(prompt_contents),
+            Some(1) => config_ui::configure_connection(prompt_contents),
+            Some(2) => config_ui::configure_separation(prompt_contents),
+            Some(3) => configure_prompt_content_list(&mut prompt_contents.left, "Left"),
+            Some(4) => configure_prompt_content_list(&mut prompt_contents.right, "Right"),
+            Some(5) | None => break,
             _ => unreachable!(),
         }
     }
@@ -137,22 +139,22 @@ fn configure_prompt_content_list(contents: &mut [PromptContent], side: &str) {
         let selection = Select::with_theme(&ColorfulTheme::default())
             .with_prompt(format!("Select {} content to configure", side))
             .items(&options)
-            .interact()
-            .unwrap();
+            .clear(true)
+            .interact_opt()
+            .unwrap_or(None);
 
-        if selection == options.len() - 1 {
-            break; // Back to Prompt Line Menu
-        }
-
-        // 選択されたコンテンツの編集
-        if let Some(prompt_content) = contents.get_mut(selection) {
-            // 色の設定メニュー（既存のUI関数を呼び出し）
-            config_ui::configure_prompt_content_colors(prompt_content);
-
-            // ヒント: ここで内容（コマンドや文字列）そのものを変更するサブメニューを
-            // さらに追加することも可能です。
-        } else {
-            eprintln!("Invalid selection.");
+        match selection {
+            Some(s) if s == options.len() - 1 => break, // Back to Prompt Line Menu
+            Some(selection) => {
+                // 選択されたコンテンツの編集
+                if let Some(prompt_content) = contents.get_mut(selection) {
+                    // 色の設定メニュー（既存のUI関数を呼び出し）
+                    config_ui::configure_prompt_content_colors(prompt_content);
+                } else {
+                    eprintln!("Invalid selection.");
+                }
+            }
+            None => break,
         }
     }
 }

@@ -35,7 +35,7 @@ pub fn prompt_for_named_color(
         .with_prompt(prompt_text)
         .default(default_str.clone())
         .interact_text()
-        .unwrap();
+        .unwrap_or_else(|_| default_str.clone());
 
     if input.eq_ignore_ascii_case("None") || input.is_empty() {
         return None;
@@ -51,12 +51,13 @@ pub fn prompt_for_named_color(
 
 // 新しい関数: フルカラーのRGB値をプロンプトで取得
 pub fn prompt_for_rgb_color(prompt_text: &str, default_rgb: (u8, u8, u8)) -> (u8, u8, u8) {
+    let default_hex = format!(
+        "#{:02X}{:02X}{:02X}",
+        default_rgb.0, default_rgb.1, default_rgb.2
+    );
     Input::with_theme(&ColorfulTheme::default())
         .with_prompt(prompt_text)
-        .default(format!(
-            "#{:02X}{:02X}{:02X}",
-            default_rgb.0, default_rgb.1, default_rgb.2
-        ))
+        .default(default_hex.clone())
         .interact_text()
         .map(|s| {
             if s.starts_with('#')
@@ -106,34 +107,37 @@ pub fn configure_colors(prompt_contents: &mut PromptContents) {
         .with_prompt("Choose separation color type")
         .items(options)
         .default(default_selection)
-        .interact()
-        .unwrap();
+        .clear(true)
+        .interact_opt()
+        .unwrap_or(None);
 
-    prompt_contents.color.accent = match selection {
-        0 => super::color_scheme::AccentColor::Single(
-            prompt_for_named_color("Color", Some(&NamedColor::LightBlack))
-                .unwrap_or(NamedColor::LightBlack),
-        ),
-        1 => {
-            let color = prompt_for_named_color(
-                "Rainbow Start Color (Hex)",
-                Some(&NamedColor::FullColor((255, 0, 0))),
-            )
-            .unwrap_or(NamedColor::FullColor((255, 0, 0)));
-            super::color_scheme::AccentColor::Rainbow(color)
-        }
-        2 => {
-            // Default Rainbow Gradient
-            super::color_scheme::AccentColor::Gradient(create_default_rainbow_gradient())
-        }
-        3 => {
-            // Custom Gradient (Existing 2-point gradient)
-            let c1_rgb = prompt_for_rgb_color("Gradient Start Color (Hex)", (0, 255, 255)); // Cyan
-            let c2_rgb = prompt_for_rgb_color("Gradient End Color (Hex)", (0, 0, 255)); // Blue
-            super::color_scheme::AccentColor::Gradient(vec![(c1_rgb, 0.0), (c2_rgb, 1.0)])
-        }
-        _ => unreachable!(),
-    };
+    if let Some(selection) = selection {
+        prompt_contents.color.accent = match selection {
+            0 => super::color_scheme::AccentColor::Single(
+                prompt_for_named_color("Color", Some(&NamedColor::LightBlack))
+                    .unwrap_or(NamedColor::LightBlack),
+            ),
+            1 => {
+                let color = prompt_for_named_color(
+                    "Rainbow Start Color (Hex)",
+                    Some(&NamedColor::FullColor((255, 0, 0))),
+                )
+                .unwrap_or(NamedColor::FullColor((255, 0, 0)));
+                super::color_scheme::AccentColor::Rainbow(color)
+            }
+            2 => {
+                // Default Rainbow Gradient
+                super::color_scheme::AccentColor::Gradient(create_default_rainbow_gradient())
+            }
+            3 => {
+                // Custom Gradient (Existing 2-point gradient)
+                let c1_rgb = prompt_for_rgb_color("Gradient Start Color (Hex)", (0, 255, 255)); // Cyan
+                let c2_rgb = prompt_for_rgb_color("Gradient End Color (Hex)", (0, 0, 255)); // Blue
+                super::color_scheme::AccentColor::Gradient(vec![(c1_rgb, 0.0), (c2_rgb, 1.0)])
+            }
+            _ => unreachable!(),
+        };
+    }
 }
 
 pub fn configure_prompt_content_colors(prompt_content: &mut PromptContent) {
@@ -186,9 +190,12 @@ pub fn configure_connection(prompt_contents: &mut PromptContents) {
                 .position(|&p| p == prompt_contents.connection)
                 .unwrap_or(0),
         )
-        .interact()
-        .unwrap();
-    prompt_contents.connection = options[selection];
+        .clear(true)
+        .interact_opt()
+        .unwrap_or(None);
+    if let Some(selection) = selection {
+        prompt_contents.connection = options[selection];
+    }
 }
 
 // PromptSeparationの選択UIをヘルパー関数として抽出
@@ -219,9 +226,14 @@ fn select_prompt_separation_style(current_style: &PromptSeparation) -> PromptSep
                 .position(|&p| p == *current_style)
                 .unwrap_or(0),
         )
-        .interact()
-        .unwrap();
-    options[selection]
+        .clear(true)
+        .interact_opt()
+        .unwrap_or(None);
+    if let Some(selection) = selection {
+        options[selection]
+    } else {
+        *current_style
+    }
 }
 
 // PromptSegmentSeparatorsを設定する新しい関数
@@ -237,23 +249,24 @@ pub fn configure_segment_separators(segment_separators: &mut PromptSegmentSepara
         let selection = Select::with_theme(&ColorfulTheme::default())
             .with_prompt("Select Segment to Configure")
             .items(options)
-            .interact()
-            .unwrap();
+            .clear(true)
+            .interact_opt()
+            .unwrap_or(None);
 
         match selection {
-            0 => {
+            Some(0) => {
                 segment_separators.start_separator =
                     select_prompt_separation_style(&segment_separators.start_separator);
             }
-            1 => {
+            Some(1) => {
                 segment_separators.mid_separator =
                     select_prompt_separation_style(&segment_separators.mid_separator);
             }
-            2 => {
+            Some(2) => {
                 segment_separators.end_separator =
                     select_prompt_separation_style(&segment_separators.end_separator);
             }
-            3 => break,
+            Some(3) | None => break,
             _ => unreachable!(),
         }
     }
@@ -270,13 +283,14 @@ pub fn configure_separation(prompt_contents: &mut PromptContents) {
         let selection = Select::with_theme(&ColorfulTheme::default())
             .with_prompt("Select Side to Configure Separators")
             .items(options)
-            .interact()
-            .unwrap();
+            .clear(true)
+            .interact_opt()
+            .unwrap_or(None);
 
         match selection {
-            0 => configure_segment_separators(&mut prompt_contents.left_segment_separators),
-            1 => configure_segment_separators(&mut prompt_contents.right_segment_separators),
-            2 => break,
+            Some(0) => configure_segment_separators(&mut prompt_contents.left_segment_separators),
+            Some(1) => configure_segment_separators(&mut prompt_contents.right_segment_separators),
+            Some(2) | None => break,
             _ => unreachable!(),
         }
     }

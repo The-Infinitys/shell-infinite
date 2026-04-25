@@ -45,6 +45,25 @@ impl ZshInfinite {
         eval("zle reset-prompt");
         Ok(())
     }
+    pub fn interrupt(&mut self) -> ZshResult {
+        if self.rt.is_none() {
+            self.rt = Some(Runtime::new().unwrap());
+        }
+        let rt = self.rt.as_ref().unwrap();
+
+        let transient_prompt = rt.block_on(async {
+            zsh::build_prompt(&PromptType::Transient {
+                exit_code: Some(130),
+            })
+            .await
+            .build()
+        });
+        ZshParameter::set_str("PROMPT", &transient_prompt)?;
+        ZshParameter::set_str("RPROMPT", "")?;
+        eval("zle reset-prompt");
+        eval("zle -R");
+        Ok(())
+    }
 }
 impl ZshModule for ZshInfinite {
     fn setup(&mut self) -> ZshResult {

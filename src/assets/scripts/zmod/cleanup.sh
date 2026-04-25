@@ -19,9 +19,14 @@ if zle -l zle-line-finish; then
     fi
 fi
 
+if zle -l interrupt; then
+    zle -D interrupt
+fi
+
 # 3. 関数と環境変数の削除
 unfunction _zsh_infinite_precmd
 unfunction _zle_infinite_line_finish
+unfunction _zle_infinite_interrupt
 unset ZLE_RPROMPT_INDENT
 
 # 4. オプションを戻す（必要に応じて）

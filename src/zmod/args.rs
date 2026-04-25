@@ -15,6 +15,7 @@ pub enum Commands {
     Store { key: String, value: String },
     Precmd,
     LineFinish,
+    Interrupt,
     Cleanup,
 }
 
@@ -33,6 +34,9 @@ impl ZmodArgs {
             Commands::Precmd => ZshInfinite::with_instance(|zsh_infinite| zsh_infinite.precmd())?,
             Commands::LineFinish => {
                 ZshInfinite::with_instance(|zsh_infinite| zsh_infinite.line_finish())?
+            }
+            Commands::Interrupt => {
+                ZshInfinite::with_instance(|zsh_infinite| zsh_infinite.interrupt())?
             }
             Commands::Cleanup => {
                 self.perform_cleanup()?;

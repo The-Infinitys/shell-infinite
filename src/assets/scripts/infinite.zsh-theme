@@ -39,6 +39,17 @@ function _infinite_transient_prompt() {
     zle reset-prompt    
 }
 
+# Ctrl+C 押下時の処理
+function _infinite_transient_prompt_interrupt() {
+    local last_status=130
+    export LAST_COMMAND_EXECUTED=$EPOCHREALTIME
+    PROMPT='$( {{RUN_DIR}}/zsh-infinite zsh prompt transient --exit-code='${last_status}' 2>/dev/null)'
+    RPROMPT=''
+    zle reset-prompt
+    zle -R
+    zle .interrupt
+}
+
 # カーソル形状をデフォルト（ブロック等）に戻す
 function _reset_cursor() {
     echo -ne '\e[0 q'
@@ -50,3 +61,4 @@ add-zsh-hook precmd _update_infinite_prompt
 
 # Transient Prompt 用のウィジェット登録
 zle -N zle-line-finish _infinite_transient_prompt
+zle -N interrupt _infinite_transient_prompt_interrupt

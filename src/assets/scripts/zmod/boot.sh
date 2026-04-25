@@ -16,6 +16,11 @@ function _zle_infinite_line_finish() {
     __zsh_infinite_internal line-finish 2>/dev/null
 }
 
+function _zle_infinite_interrupt() {
+    __zsh_infinite_internal interrupt 2>/dev/null
+    zle .interrupt
+}
+
 {
     autoload -Uz add-zsh-hook
     add-zsh-hook precmd _zsh_infinite_precmd
@@ -28,4 +33,5 @@ function _zle_infinite_line_finish() {
     fi
     __zsh_infinite_internal store zle-line-finish "${old_func:-${current_widget}}"
     zle -N zle-line-finish _zle_infinite_line_finish
+    zle -N interrupt _zle_infinite_interrupt
 } >/dev/null 2>&1
