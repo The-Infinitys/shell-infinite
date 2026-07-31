@@ -131,7 +131,10 @@ pub fn install() {
         println!("\nSheldon detected at: {:?}", sheldon_path);
         println!("To manage zsh-infinite with Sheldon, add the following to your plugins.toml:");
         println!("\n[plugins.zsh-infinite]");
-        println!("local = \"{:?}\"", install_paths.theme_file_path.parent().unwrap());
+        println!(
+            "local = \"{:?}\"",
+            install_paths.theme_file_path.parent().unwrap()
+        );
         println!("use = [\"{}\"]\n", paths::ZSH_THEME_FILE_NAME);
     }
 

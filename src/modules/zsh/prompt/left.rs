@@ -73,9 +73,7 @@ pub async fn left() -> ZshPromptBuilder {
         let connection_len = if stuff_width < terminal_width {
             terminal_width - stuff_width
         } else {
-            (terminal_width * 2)
-                .saturating_sub(stuff_width)
-                % terminal_width
+            (terminal_width * 2).saturating_sub(stuff_width) % terminal_width
         };
         let connection_str = prompt_contents // `theme.connection` から `prompt_contents.connection` に変更
             .connection
