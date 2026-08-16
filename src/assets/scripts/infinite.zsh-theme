@@ -57,8 +57,11 @@ function _reset_cursor() {
 
 # フックの登録
 autoload -Uz add-zsh-hook
-add-zsh-hook precmd _update_infinite_prompt
-
+if [[ ! "$ZSH_INFINITE_HOOKS_REGISTERED" ]]; then
+    add-zsh-hook precmd _update_infinite_prompt
+    export ZSH_INFINITE_HOOKS_REGISTERED=true
+fi
+    
 # Transient Prompt 用のウィジェット登録
 zle -N zle-line-finish _infinite_transient_prompt
 zle -N interrupt _infinite_transient_prompt_interrupt
